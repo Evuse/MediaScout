@@ -489,19 +489,18 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             AppBackdrop()
-            VStack(spacing: 18) {
-                HeaderView(state: self.state)
-                WorkspaceModePicker(state: self.state)
-                SupportedSourcesStrip(state: self.state)
-                if self.state.workspaceMode == .analyzer {
-                    MetricsStrip(state: self.state)
-                    AnalyzerControlsView(state: self.state)
-                    ResultsView(state: self.state)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    GIFStudioView(state: self.state)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            HStack(alignment: .top, spacing: 22) {
+                SidebarNavigationView(state: self.state)
+                    .frame(width: 220)
+                    .frame(maxHeight: .infinity)
+                MainContentSurface {
+                    if self.state.workspaceMode == .analyzer {
+                        AnalyzerDashboardView(state: self.state)
+                    } else {
+                        GIFStudioPageView(state: self.state)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .padding(18)
@@ -509,20 +508,22 @@ struct ContentView: View {
     }
 }
 
-struct WorkspaceModePicker: View {
-    @ObservedObject var state: AppState
+struct MainContentSurface<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
 
     var body: some View {
-        HStack {
-            Picker("", selection: $state.workspaceMode) {
-                ForEach(WorkspaceMode.allCases) { mode in
-                    Text(mode.label).tag(mode)
-                }
+        ScrollView {
+            VStack(spacing: 18) {
+                content
             }
-            .pickerStyle(SegmentedPickerStyle())
-            .frame(width: 260)
-            Spacer()
+            .padding(18)
         }
+        .background(Color.white.opacity(0.56))
+        .cornerRadius(28)
     }
 }
 
@@ -531,114 +532,225 @@ struct AppBackdrop: View {
         ZStack {
             LinearGradient(
                 gradient: Gradient(colors: [
-                    Color(red: 0.96, green: 0.98, blue: 1.0),
-                    Color(red: 0.96, green: 0.99, blue: 0.97),
-                    Color(red: 1.0, green: 0.97, blue: 0.94)
+                    Color(red: 0.97, green: 0.98, blue: 1.0),
+                    Color(red: 0.98, green: 0.98, blue: 1.0),
+                    Color(red: 1.0, green: 0.98, blue: 0.97)
                 ]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             Circle()
-                .fill(Color(red: 0.20, green: 0.58, blue: 0.98).opacity(0.14))
-                .frame(width: 360, height: 360)
-                .offset(x: -380, y: -260)
+                .fill(Color(red: 0.36, green: 0.48, blue: 0.98).opacity(0.10))
+                .frame(width: 420, height: 420)
+                .offset(x: -420, y: -300)
             Circle()
-                .fill(Color(red: 0.05, green: 0.78, blue: 0.55).opacity(0.10))
-                .frame(width: 300, height: 300)
-                .offset(x: 420, y: -220)
+                .fill(Color(red: 0.54, green: 0.27, blue: 0.98).opacity(0.10))
+                .frame(width: 340, height: 340)
+                .offset(x: 460, y: -240)
         }
         .edgesIgnoringSafeArea(.all)
     }
 }
 
-struct HeaderView: View {
+struct SidebarNavigationView: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    Color(red: 0.10, green: 0.55, blue: 0.98)
-                        .frame(width: 12, height: 12)
-                        .cornerRadius(6)
-                    Text("MediaScout")
-                        .font(.system(size: 32, weight: .bold))
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 12) {
+                ZStack {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 0.18, green: 0.54, blue: 0.98),
+                            Color(red: 0.47, green: 0.17, blue: 0.95)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .frame(width: 42, height: 42)
+                    .cornerRadius(21)
+                    Text("▶")
+                        .foregroundColor(.white)
+                        .font(.system(size: 16, weight: .bold))
                 }
-                Text("Downloader visuale per video e GIF con analisi browser-side")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Color.black.opacity(0.62))
-                Text(state.facebookMode ? "Ottimizzato per sbloccare Facebook prima dell'analisi" : "Analisi rapida, ranking pesato e download diretto")
-                    .font(.system(size: 12, weight: .medium))
+                Text("MediaScout")
+                    .font(.system(size: 18, weight: .bold))
+            }
+
+            VStack(spacing: 8) {
+                SidebarNavButton(title: "Dashboard", symbol: "⌂", isActive: state.workspaceMode == .analyzer) {
+                    self.state.workspaceMode = .analyzer
+                }
+                SidebarNavButton(title: "GIF Studio", symbol: "◔", isActive: state.workspaceMode == .gifStudio) {
+                    self.state.workspaceMode = .gifStudio
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Stato attuale")
+                    .font(.system(size: 12))
                     .foregroundColor(Color.black.opacity(0.45))
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(state.isAnalyzing || state.isConvertingGIF ? Color(red: 0.98, green: 0.66, blue: 0.18) : Color(red: 0.26, green: 0.89, blue: 0.42))
+                        .frame(width: 10, height: 10)
+                    Text(state.isAnalyzing ? "Analisi in corso" : (state.isConvertingGIF ? "Conversione in corso" : "Pronto"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color.black.opacity(0.72))
+                }
+            }
+            .padding(16)
+            .background(Color.white.opacity(0.84))
+            .cornerRadius(18)
+        }
+        .padding(18)
+        .background(Color.white.opacity(0.74))
+        .cornerRadius(24)
+        .padding(.vertical, 10)
+    }
+}
+
+struct SidebarNavButton: View {
+    let title: String
+    let symbol: String
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Text(symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 15, weight: isActive ? .semibold : .medium))
+                Spacer()
+            }
+            .foregroundColor(isActive ? Color(red: 0.36, green: 0.28, blue: 0.94) : Color.black.opacity(0.66))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(isActive ? Color.white.opacity(0.84) : Color.clear)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct HeroBannerView: View {
+    let eyebrow: String
+    let title: String
+    let subtitle: String
+    let statusLabel: String
+
+    var body: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(eyebrow)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.94))
+                Text(title)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(Color.white)
+                Text(subtitle)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.86))
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 8) {
-                Text(state.facebookMode ? "Facebook Assist" : "Rapid Capture")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background((state.facebookMode ? Color.blue : Color.green).opacity(0.12))
-                    .foregroundColor(state.facebookMode ? .blue : .green)
-                    .cornerRadius(8)
-                Text(state.domainLabel)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color.black.opacity(0.55))
+            VStack(alignment: .trailing, spacing: 18) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Color(red: 0.26, green: 0.89, blue: 0.42))
+                        .frame(width: 10, height: 10)
+                    Text(statusLabel)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color.white)
+                }
             }
         }
-        .padding(.horizontal, 26)
-        .padding(.vertical, 24)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 28)
         .background(
             LinearGradient(
                 gradient: Gradient(colors: [
-                    Color.white.opacity(0.96),
-                    Color(red: 0.95, green: 0.98, blue: 1.0).opacity(0.98),
-                    Color(red: 1.0, green: 0.96, blue: 0.97).opacity(0.96)
+                    Color(red: 0.16, green: 0.50, blue: 0.98),
+                    Color(red: 0.25, green: 0.32, blue: 0.95),
+                    Color(red: 0.50, green: 0.13, blue: 0.95)
                 ]),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.7), lineWidth: 1)
-        )
-        .cornerRadius(18)
-        .shadow(color: Color(red: 0.16, green: 0.23, blue: 0.38).opacity(0.10), radius: 24, x: 0, y: 14)
+        .cornerRadius(24)
+        .shadow(color: Color(red: 0.27, green: 0.27, blue: 0.78).opacity(0.20), radius: 28, x: 0, y: 18)
     }
 }
 
-struct SupportedSourcesStrip: View {
+struct AnalyzerDashboardView: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        HStack(spacing: 8) {
+        VStack(spacing: 18) {
+            HeroBannerView(
+                eyebrow: "Ciao! 👋",
+                title: "Pronto per una nuova analisi?",
+                subtitle: "Analizza video e GIF direttamente dal browser. Veloce, intelligente, preciso.",
+                statusLabel: state.isAnalyzing ? "Analisi..." : "Pronto"
+            )
+            MetricsStrip(state: state)
+            HStack(alignment: .top, spacing: 16) {
+                AnalysisInputCard(state: state)
+                AnalyzerSettingsCard(state: state)
+                AnalyzerSourcesCard(state: state)
+                LiveStatusCard(state: state)
+                    .frame(width: 240)
+            }
+            ResultsView(state: state)
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+}
+
+struct GIFStudioPageView: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        VStack(spacing: 18) {
+            HeroBannerView(
+                eyebrow: "Nuova analisi / GIF Studio",
+                title: "Configura la tua analisi GIF",
+                subtitle: "Imposta sorgente, qualita e parametri per ottenere risultati precisi e veloci.",
+                statusLabel: state.isConvertingGIF ? "Conversione..." : "Pronto"
+            )
+            SourcePillsView(state: state)
+            GIFStudioView(state: state)
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+}
+
+struct SourcePillsView: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        HStack(spacing: 12) {
             ForEach(state.supportedSources) { source in
-                HStack(spacing: 7) {
+                HStack(spacing: 8) {
                     source.tint
-                        .frame(width: 8, height: 8)
-                        .cornerRadius(4)
+                        .frame(width: 10, height: 10)
+                        .cornerRadius(5)
                     Text(source.name)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color.black.opacity(0.74))
+                        .font(.system(size: 14, weight: .medium))
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(source.tint.opacity(self.badgeOpacity(for: source.name)))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.92))
                 .cornerRadius(999)
             }
+            Spacer()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func badgeOpacity(for name: String) -> Double {
-        let domain = state.domainLabel.lowercased()
-        if name == "Facebook" && state.facebookMode { return 0.20 }
-        if domain.contains("envato") && name == "Envato" { return 0.20 }
-        if domain.contains("instagram") && name == "Instagram" { return 0.20 }
-        if domain.contains("pinterest") && name == "Pinterest" { return 0.20 }
-        if domain.contains("dribbble") && name == "Dribbble" { return 0.20 }
-        return 0.08
     }
 }
 
@@ -646,11 +758,11 @@ struct MetricsStrip: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        HStack(spacing: 14) {
-            MetricTile(title: "Stato", value: state.isAnalyzing ? "Analisi" : "Pronto", tone: Color(red: 0.10, green: 0.55, blue: 0.98))
-            MetricTile(title: "Risultati", value: "\(state.filteredCandidates.count)", tone: Color(red: 0.00, green: 0.72, blue: 0.52))
-            MetricTile(title: "Peso totale", value: state.totalSizeLabel, tone: Color(red: 0.98, green: 0.54, blue: 0.18))
-            MetricTile(title: "Modalita", value: state.facebookMode ? "Facebook" : "Standard", tone: Color(red: 0.90, green: 0.21, blue: 0.40))
+        HStack(spacing: 16) {
+            MetricTile(title: "Stato", value: state.isAnalyzing ? "Analisi" : "Pronto", note: "Analisi completate", accent: Color(red: 0.24, green: 0.75, blue: 0.49), icon: "●")
+            MetricTile(title: "Risultati totali", value: "\(state.filteredCandidates.count)", note: "Analisi completate", accent: Color(red: 0.23, green: 0.48, blue: 0.98), icon: "▥")
+            MetricTile(title: "Peso totale", value: state.totalSizeLabel == "Peso n.d." ? "—" : state.totalSizeLabel, note: "Peso n.d.", accent: Color(red: 0.54, green: 0.34, blue: 0.95), icon: "⚖")
+            MetricTile(title: "Modalità", value: state.facebookMode ? "Facebook" : "Standard", note: "Configurazione attuale", accent: Color(red: 0.98, green: 0.58, blue: 0.18), icon: "🛡")
         }
     }
 }
@@ -658,112 +770,241 @@ struct MetricsStrip: View {
 struct MetricTile: View {
     let title: String
     let value: String
-    let tone: Color
+    let note: String
+    let accent: Color
+    let icon: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(Color.black.opacity(0.45))
-            Text(value)
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(Color.black.opacity(0.82))
+        HStack {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Color.black.opacity(0.58))
+                Text(value)
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundColor(Color.black.opacity(0.86))
+                Text(note)
+                    .font(.system(size: 13))
+                    .foregroundColor(Color.black.opacity(0.44))
+            }
+            Spacer()
+            ZStack {
+                Circle()
+                    .fill(accent.opacity(0.12))
+                    .frame(width: 66, height: 66)
+                Text(icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(accent)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.white.opacity(0.88))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(tone.opacity(0.22), lineWidth: 1)
-        )
-        .cornerRadius(16)
+        .padding(18)
+        .background(Color.white.opacity(0.94))
+        .cornerRadius(18)
     }
 }
 
-struct AnalyzerControlsView: View {
+struct DashboardCard<Content: View>: View {
+    let title: String
+    let tint: Color
+    let subtitle: String
+    let content: Content
+
+    init(title: String, tint: Color, subtitle: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.tint = tint
+        self.subtitle = subtitle
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(tint.opacity(0.14))
+                    .frame(width: 26, height: 26)
+                    .overlay(Text("•").foregroundColor(tint))
+                Text(title)
+                    .font(.system(size: 17, weight: .bold))
+            }
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundColor(Color.black.opacity(0.48))
+            }
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(18)
+        .background(Color.white.opacity(0.94))
+        .cornerRadius(22)
+    }
+}
+
+struct DashboardSection<Content: View, Trailing: View>: View {
+    let title: String
+    let tint: Color
+    let subtitle: String
+    let trailing: Trailing
+    let content: Content
+
+    init(title: String, tint: Color, subtitle: String, @ViewBuilder trailing: () -> Trailing, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.tint = tint
+        self.subtitle = subtitle
+        self.trailing = trailing()
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(tint)
+                            .frame(width: 24, height: 24)
+                            .overlay(Text("▶").font(.system(size: 10, weight: .bold)).foregroundColor(.white))
+                        Text(title)
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(tint)
+                    }
+                    Text(subtitle)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.black.opacity(0.48))
+                }
+                Spacer()
+                trailing
+            }
+            content
+        }
+        .padding(18)
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.white.opacity(0.96),
+                    tint.opacity(0.07)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .cornerRadius(22)
+    }
+}
+
+struct PrimaryGradientButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Spacer()
+                Text(title + "  →")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            .padding(.vertical, 14)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.53, green: 0.31, blue: 0.96),
+                        Color(red: 0.38, green: 0.24, blue: 0.95)
+                    ]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .cornerRadius(14)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct AnalysisInputCard: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            PanelCard(title: "Nuova analisi", tint: Color(red: 0.10, green: 0.55, blue: 0.98)) {
-                TextField("https://example.com/post/...", text: $state.urlText, onCommit: {
+        DashboardCard(title: "Nuova analisi", tint: Color(red: 0.41, green: 0.28, blue: 0.96), subtitle: "Incolla qui il link di un video o GIF (Twitter, Instagram, ecc.)") {
+            VStack(alignment: .leading, spacing: 14) {
+                TextField("https://example.com/post/123", text: $state.urlText, onCommit: {
                     self.state.analyze()
                 })
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                Button(action: {
+                PrimaryGradientButton(title: state.isAnalyzing ? "Analisi in corso..." : "Analizza pagina", action: {
                     self.state.analyze()
-                }) {
-                    HStack {
-                        Spacer()
-                        Text(state.isAnalyzing ? "Analisi in corso..." : "Analizza pagina")
-                        Spacer()
-                    }
-                }
+                })
                 .disabled(state.isAnalyzing || state.urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Text(state.quickSummary)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color.black.opacity(0.54))
-            }
-            .frame(maxWidth: .infinity, alignment: .top)
-
-            PanelCard(title: "Settaggi", tint: Color(red: 0.98, green: 0.54, blue: 0.18)) {
-                Text("Chrome/Chromium gira in background con budget rapido sotto i 10 secondi.")
+                Text("Supportiamo: Facebook, Instagram, Pinterest, Dribbble, Envato e altri.")
                     .font(.system(size: 12))
-                    .foregroundColor(Color.black.opacity(0.58))
-                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundColor(Color.black.opacity(0.48))
+            }
+        }
+    }
+}
+
+struct AnalyzerSettingsCard: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        DashboardCard(title: "Impostazioni", tint: Color(red: 0.43, green: 0.47, blue: 0.59), subtitle: "Configura Chrome/Chromium per catturare al meglio.") {
+            VStack(alignment: .leading, spacing: 14) {
                 Toggle("Scorrimento automatico", isOn: $state.deepScroll)
                 Toggle("Risorse network", isOn: $state.includeNetworkResources)
-                Toggle("Prova accettazione cookie", isOn: $state.autoAcceptCookies)
-                Stepper(value: $state.resultLimit, in: 3...30) {
-                    Text("Risultati max: \(state.resultLimit)")
+                Toggle("Accetta cookie", isOn: $state.autoAcceptCookies)
+                HStack {
+                    Text("Risultati max")
+                    Spacer()
+                    Stepper("\(state.resultLimit)", value: $state.resultLimit, in: 3...30)
+                        .labelsHidden()
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .top)
+        }
+    }
+}
 
-            PanelCard(title: "Sorgenti", tint: Color(red: 0.53, green: 0.40, blue: 0.96)) {
-                Text("Sorgenti supportate e in affinamento continuo.")
-                    .font(.system(size: 12))
-                    .foregroundColor(Color.black.opacity(0.58))
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(state.supportedSources.chunked(into: 3).enumerated()), id: \.offset) { _, row in
-                        HStack(spacing: 12) {
-                            ForEach(row) { source in
-                                HStack(spacing: 8) {
-                                    source.tint
-                                        .frame(width: 9, height: 9)
-                                        .cornerRadius(5)
-                                    Text(source.name)
-                                        .font(.system(size: 12, weight: .semibold))
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
+struct AnalyzerSourcesCard: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        DashboardCard(title: "Sorgenti", tint: Color(red: 0.53, green: 0.31, blue: 0.96), subtitle: "Sorgenti già ottimizzate nel motore attuale.") {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(state.supportedSources.chunked(into: 2).enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: 20) {
+                        ForEach(row) { source in
+                            HStack(spacing: 10) {
+                                source.tint
+                                    .frame(width: 12, height: 12)
+                                    .cornerRadius(6)
+                                Text(source.name)
+                                    .font(.system(size: 14, weight: .medium))
+                                Spacer()
                             }
                         }
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .top)
+        }
+    }
+}
 
-            VStack(spacing: 14) {
-                PanelCard(title: "Formati", tint: Color(red: 0.00, green: 0.72, blue: 0.52)) {
-                    Toggle("Video", isOn: $state.showVideos)
-                    Toggle("GIF", isOn: $state.showGifs)
-                }
+struct LiveStatusCard: View {
+    @ObservedObject var state: AppState
 
-                PanelCard(title: "Stato live", tint: Color(red: 0.90, green: 0.21, blue: 0.40)) {
-                    Text(state.status)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color.black.opacity(0.62))
-                        .lineLimit(5)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if state.facebookMode {
-                        Text("Facebook: cookie e popup login vengono gestiti prima della lettura del reel.")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color.blue.opacity(0.88))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+    var body: some View {
+        DashboardCard(title: "Stato live", tint: Color(red: 0.95, green: 0.31, blue: 0.57), subtitle: "") {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(state.status)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Color.black.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Text("∿   ∿   ∿")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundColor(Color(red: 0.95, green: 0.31, blue: 0.57).opacity(0.78))
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
-            .frame(maxWidth: .infinity, alignment: .top)
         }
     }
 }
@@ -777,111 +1018,61 @@ extension Array {
     }
 }
 
-struct PanelCard<Content: View>: View {
-    let title: String
-    let tint: Color
-    let content: Content
-
-    init(title: String, tint: Color, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.tint = tint
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                tint
-                    .frame(width: 10, height: 10)
-                    .cornerRadius(5)
-                Text(title)
-                    .font(.system(size: 16, weight: .bold))
-            }
-            content
-        }
-        .padding(16)
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color.white.opacity(0.97),
-                    tint.opacity(0.07)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(tint.opacity(0.16), lineWidth: 1)
-        )
-        .cornerRadius(18)
-        .shadow(color: tint.opacity(0.08), radius: 18, x: 0, y: 10)
-    }
-}
-
 struct ResultsView: View {
     @ObservedObject var state: AppState
     @State private var showLogs = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
+        DashboardSection(title: "Risultati recenti", tint: Color(red: 0.24, green: 0.53, blue: 0.98), subtitle: "I tuoi ultimi risultati di analisi", trailing: {
+            EmptyView()
+        }) {
+            VStack(spacing: 0) {
+                HStack {
                     Text("\(state.filteredCandidates.count) risultati")
-                        .font(.title)
-                        .fontWeight(.semibold)
-                    Text("Video e GIF ordinati dal file piu pesante al piu leggero.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 17, weight: .bold))
+                    Spacer()
+                    Button(showLogs ? "Nascondi log" : "Mostra log") {
+                        self.showLogs.toggle()
+                    }
                 }
-                Spacer()
-                Button(showLogs ? "Nascondi log" : "Mostra log") {
-                    self.showLogs.toggle()
+                .padding(.bottom, 14)
+
+                if showLogs {
+                    LogView(logs: state.logs)
+                        .frame(height: 130)
+                        .padding(.bottom, 14)
                 }
-            }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 14)
 
-            if showLogs {
-                LogView(logs: state.logs)
-                    .frame(height: 120)
-            }
-
-            if state.filteredCandidates.isEmpty {
-                EmptyStateView(isAnalyzing: state.isAnalyzing)
-            } else {
-                ScrollView {
-                    VStack(spacing: 14) {
-                        ForEach(Array(state.filteredCandidates.chunked(into: 2).enumerated()), id: \.offset) { _, row in
-                            HStack(alignment: .top, spacing: 14) {
-                                ForEach(row) { candidate in
-                                    CandidateCard(candidate: candidate, isBusy: self.state.isDownloading, download: {
-                                        self.state.download(candidate)
-                                    }, copyURL: {
-                                        self.state.copyURL(candidate)
-                                    }, convertToGIF: {
-                                        self.state.prepareGIFSource(from: candidate)
-                                    })
-                                    .frame(maxWidth: .infinity)
-                                }
-                                if row.count == 1 {
-                                    Spacer()
+                if state.filteredCandidates.isEmpty {
+                    EmptyStateView(isAnalyzing: state.isAnalyzing)
+                        .frame(height: 220)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 14) {
+                            ForEach(Array(state.filteredCandidates.chunked(into: 2).enumerated()), id: \.offset) { _, row in
+                                HStack(alignment: .top, spacing: 14) {
+                                    ForEach(row) { candidate in
+                                        CandidateCard(candidate: candidate, isBusy: self.state.isDownloading, download: {
+                                            self.state.download(candidate)
+                                        }, copyURL: {
+                                            self.state.copyURL(candidate)
+                                        }, convertToGIF: {
+                                            self.state.prepareGIFSource(from: candidate)
+                                        })
                                         .frame(maxWidth: .infinity)
+                                    }
+                                    if row.count == 1 {
+                                        Spacer()
+                                            .frame(maxWidth: .infinity)
+                                    }
                                 }
                             }
                         }
                     }
-                    .padding(20)
                 }
             }
         }
-        .background(Color.white.opacity(0.92))
-        .cornerRadius(22)
-        .overlay(
-            RoundedRectangle(cornerRadius: 22)
-                .stroke(Color.white.opacity(0.7), lineWidth: 1)
-        )
-        .shadow(color: Color(red: 0.16, green: 0.23, blue: 0.38).opacity(0.10), radius: 24, x: 0, y: 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -890,63 +1081,60 @@ struct GIFStudioView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 14) {
-                PanelCard(title: "Sorgente video", tint: Color(red: 0.92, green: 0.34, blue: 0.58)) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        TextField("URL video o percorso file locale", text: $state.gifSourceText)
+            HStack(alignment: .top, spacing: 16) {
+                DashboardCard(title: "1. Sorgente video", tint: Color(red: 0.95, green: 0.24, blue: 0.66), subtitle: "") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TextField("Incolla URL video o scegli file locale", text: $state.gifSourceText)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                         HStack(spacing: 10) {
-                            Button("Scegli file video...") {
+                            Button("⇪  Scegli file video...") {
                                 self.state.pickGIFSourceFile()
                             }
-                            Button("Pulisci") {
+                            Button("✕  Pulisci") {
                                 self.state.gifSourceText = ""
                             }
                         }
+                        .buttonStyle(PlainButtonStyle())
                         Text("Usa un link diretto, un file locale o il pulsante In GIF dai risultati dell analyzer.")
                             .font(.system(size: 12))
-                            .foregroundColor(Color.black.opacity(0.58))
-                            .fixedSize(horizontal: false, vertical: true)
+                            .foregroundColor(Color.black.opacity(0.48))
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .top)
 
-                PanelCard(title: "Preset rapidi", tint: Color(red: 0.10, green: 0.55, blue: 0.98)) {
-                    VStack(alignment: .leading, spacing: 8) {
+                DashboardCard(title: "2. Preset rapidi", tint: Color(red: 0.24, green: 0.45, blue: 0.98), subtitle: "") {
+                    VStack(spacing: 10) {
                         ForEach(GIFPreset.allCases) { preset in
                             Button(action: {
                                 self.state.applyGIFPreset(preset)
                             }) {
                                 HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
+                                    VStack(alignment: .leading, spacing: 3) {
                                         Text(preset.label)
-                                            .font(.system(size: 13, weight: .semibold))
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(Color.black.opacity(0.82))
                                         Text(preset.subtitle)
-                                            .font(.system(size: 11))
-                                            .foregroundColor(Color.black.opacity(0.58))
+                                            .font(.system(size: 12))
+                                            .foregroundColor(Color.black.opacity(0.48))
                                     }
                                     Spacer()
                                     if self.state.gifPreset == preset {
                                         Text("Attivo")
                                             .font(.system(size: 11, weight: .bold))
-                                            .foregroundColor(Color(red: 0.10, green: 0.55, blue: 0.98))
+                                            .foregroundColor(Color(red: 0.24, green: 0.45, blue: 0.98))
                                     }
                                 }
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(self.state.gifPreset == preset ? Color(red: 0.10, green: 0.55, blue: 0.98).opacity(0.10) : Color.white.opacity(0.7))
-                                )
+                                .padding(.vertical, 12)
+                                .background(Color.white.opacity(self.state.gifPreset == preset ? 0.98 : 0.74))
+                                .cornerRadius(12)
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .top)
 
-                PanelCard(title: "Qualita e peso", tint: Color(red: 0.98, green: 0.54, blue: 0.18)) {
-                    VStack(alignment: .leading, spacing: 10) {
+                DashboardCard(title: "3. Qualità e peso", tint: Color(red: 0.98, green: 0.52, blue: 0.18), subtitle: "") {
+                    VStack(alignment: .leading, spacing: 16) {
                         Stepper(value: $state.gifScalePercent, in: 20...100, step: 5) {
                             Text("Risoluzione output: \(state.gifScalePercent)%")
                         }
@@ -958,107 +1146,115 @@ struct GIFStudioView: View {
                         }
                         Picker("Tavolozza colori", selection: $state.gifPaletteSize) {
                             ForEach(GIFPaletteSize.allCases) { size in
-                                Text(size.label).tag(size)
+                                Text(size.label + " colori").tag(size)
                             }
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .top)
 
-                PanelCard(title: "Dithering", tint: Color(red: 0.53, green: 0.40, blue: 0.96)) {
-                    VStack(alignment: .leading, spacing: 10) {
+                DashboardCard(title: "4. Dithering", tint: Color(red: 0.54, green: 0.31, blue: 0.95), subtitle: "") {
+                    VStack(alignment: .leading, spacing: 16) {
                         Picker("Tipo", selection: $state.gifDitherStyle) {
                             ForEach(GIFDitherStyle.allCases) { style in
                                 Text(style.label).tag(style)
                             }
                         }
                         Stepper(value: $state.gifDitherIntensity, in: 0...100, step: 5) {
-                            Text("Intensita: \(state.gifDitherIntensity)%")
+                            Text("Intensità: \(state.gifDitherIntensity)%")
                         }
                         Toggle("Frame differencing", isOn: $state.gifFrameDifferencing)
                         Toggle("Drop frame duplicati", isOn: $state.gifDropDuplicateFrames)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .top)
             }
 
             HStack(alignment: .top, spacing: 16) {
-                PanelCard(title: "Trim e conversione", tint: Color(red: 0.00, green: 0.72, blue: 0.52)) {
-                    VStack(alignment: .leading, spacing: 10) {
+                DashboardCard(title: "5. Trim e conversione", tint: Color(red: 0.16, green: 0.74, blue: 0.52), subtitle: "") {
+                    VStack(alignment: .leading, spacing: 14) {
                         HStack {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Inizio (sec)")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                TextField("0", text: $state.gifTrimStart)
+                                TextField("0.00", text: $state.gifTrimStart)
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                             }
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Fine (sec)")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                TextField("fine video", text: $state.gifTrimEnd)
+                                TextField("Fine video", text: $state.gifTrimEnd)
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                             }
                         }
-                        Spacer(minLength: 0)
+                        Spacer(minLength: 40)
                         Button(action: {
                             self.state.convertToGIF()
                         }) {
                             HStack {
-                                Spacer()
+                                Text("◉")
                                 Text(state.isConvertingGIF ? "Conversione in corso..." : "Converti in GIF")
                                 Spacer()
+                                Text("→")
                             }
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(Color(red: 0.00, green: 0.55, blue: 0.36))
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 14)
+                            .background(Color(red: 0.89, green: 1.0, blue: 0.94))
+                            .cornerRadius(14)
                         }
+                        .buttonStyle(PlainButtonStyle())
                         .disabled(state.isConvertingGIF || state.gifSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
-                .frame(width: 300)
+                .frame(width: 310)
 
-                PanelCard(title: "Anteprima output", tint: Color(red: 0.10, green: 0.55, blue: 0.98)) {
+                DashboardCard(title: "6. Anteprima output", tint: Color(red: 0.20, green: 0.45, blue: 0.98), subtitle: "") {
                     if !state.gifOutputPath.isEmpty {
                         GIFOutputPreview(path: state.gifOutputPath)
-                            .frame(height: 280)
-                            .frame(maxWidth: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        Text(state.gifOutputPath)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(.secondary)
-                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, minHeight: 300)
                     } else {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("GIF Studio")
-                                .font(Font.title.weight(.semibold))
-                            Text("Tutte le regolazioni importanti ora sono in alto: scegli la sorgente, applica un preset rapido e poi rifinisci i parametri solo se serve.")
+                        VStack(spacing: 18) {
+                            Text("▣")
+                                .font(.system(size: 56, weight: .light))
+                                .foregroundColor(Color(red: 0.37, green: 0.32, blue: 0.96))
+                            Text("Anteprima GIF")
+                                .font(.system(size: 20, weight: .semibold))
+                            Text("L anteprima apparira qui dopo la configurazione della sorgente e dei parametri.")
                                 .font(.system(size: 13))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color.black.opacity(0.44))
                         }
-                        .frame(maxWidth: .infinity, minHeight: 280, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                        .background(Color(red: 0.98, green: 0.98, blue: 1.0))
+                        .cornerRadius(18)
                     }
                 }
-                .frame(maxWidth: .infinity)
 
-                VStack(spacing: 14) {
-                    PanelCard(title: "Stato conversione", tint: Color(red: 0.90, green: 0.21, blue: 0.40)) {
+                VStack(spacing: 16) {
+                    DashboardCard(title: "7. Stato conversione", tint: Color(red: 0.95, green: 0.31, blue: 0.57), subtitle: "") {
                         Text(state.gifStatus)
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(Color.black.opacity(0.62))
-                            .fixedSize(horizontal: false, vertical: true)
                     }
-
-                    PanelCard(title: "Log GIF", tint: Color(red: 0.46, green: 0.53, blue: 0.60)) {
+                    DashboardCard(title: "8. Log GIF", tint: Color(red: 0.45, green: 0.47, blue: 0.59), subtitle: "") {
                         LogView(logs: state.gifLogs)
-                            .frame(height: 190)
+                            .frame(height: 220)
                     }
                 }
-                .frame(width: 360)
+                .frame(width: 280)
+            }
+
+            DashboardCard(title: "Info GIF", tint: Color(red: 0.45, green: 0.24, blue: 0.96), subtitle: "") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("GIF Studio")
+                        .font(.system(size: 16, weight: .bold))
+                    Text("Tutte le impostazioni importanti sono in alto: scegli la sorgente, applica un preset rapido e poi rifinisci i parametri solo se serve.")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.black.opacity(0.48))
+                }
             }
         }
-        .background(Color.white.opacity(0.88))
-        .cornerRadius(22)
-        .shadow(color: Color.black.opacity(0.06), radius: 18, x: 0, y: 10)
-        .padding(.top, 4)
     }
 }
 
@@ -1090,10 +1286,10 @@ struct EmptyStateView: View {
     var body: some View {
         VStack(spacing: 12) {
             Spacer()
-            Text(isAnalyzing ? "Sto ispezionando la pagina..." : "Nessun video o GIF visibile")
+            Text(isAnalyzing ? "Sto ispezionando la pagina..." : "Nessun risultato ancora")
                 .font(.headline)
                 .fontWeight(.semibold)
-            Text(isAnalyzing ? "Carico in background, accetto eventuali cookie e leggo DOM e network." : "Inserisci una URL o apri i log dopo un'analisi fallita.")
+            Text(isAnalyzing ? "Sto caricando DOM, network e risorse del browser in background." : "Le tue analisi completate appariranno qui.")
                 .foregroundColor(.secondary)
             Spacer()
         }
@@ -1116,7 +1312,8 @@ struct LogView: View {
             }
             .padding(12)
         }
-        .background(Color(red: 0.96, green: 0.98, blue: 1.0))
+        .background(Color(red: 0.97, green: 0.98, blue: 1.0))
+        .cornerRadius(14)
     }
 }
 
