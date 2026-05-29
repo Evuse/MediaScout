@@ -1,0 +1,22 @@
+.DS_Store
+
+# Build output
+.build/
+dist/
+
+# Archives and handoff packages
+*.zip
+
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# SwiftPM / Xcode caches
+.swiftpm/
+DerivedData/
+
+# Logs and temp files
+*.log
+tmp/
+*.tmp
