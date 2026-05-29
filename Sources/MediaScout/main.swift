@@ -144,6 +144,30 @@ enum GIFDitherStyle: String, CaseIterable, Identifiable {
     }
 }
 
+enum GIFPreset: String, CaseIterable, Identifiable {
+    case leggera
+    case bilanciata
+    case ultraCompressa
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .leggera: return "Leggera"
+        case .bilanciata: return "Bilanciata"
+        case .ultraCompressa: return "Ultra compressa"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .leggera: return "Massima resa visiva"
+        case .bilanciata: return "Qualita e peso in equilibrio"
+        case .ultraCompressa: return "Peso minimo per social e chat"
+        }
+    }
+}
+
 struct GIFConversionRequest {
     let sourceText: String
     let sourceCandidate: MediaCandidate?
@@ -175,6 +199,7 @@ final class AppState: ObservableObject {
     @Published var isAnalyzing: Bool = false
     @Published var isDownloading: Bool = false
     @Published var gifSourceText: String = ""
+    @Published var gifPreset: GIFPreset = .bilanciata
     @Published var gifScalePercent: Int = 100
     @Published var gifFPS: Int = 12
     @Published var gifLossyPercent: Int = 20
@@ -196,6 +221,10 @@ final class AppState: ObservableObject {
     private let chromeAnalyzer = ChromeMediaAnalyzer()
     private let downloader = MediaDownloader()
     private let gifConverter = GIFConverter()
+
+    init() {
+        applyGIFPreset(.bilanciata)
+    }
 
     var domainLabel: String {
         guard let url = URL(string: urlText), let host = url.host, !host.isEmpty else {
@@ -336,6 +365,56 @@ final class AppState: ObservableObject {
         workspaceMode = .gifStudio
     }
 
+    func pickGIFSourceFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedFileTypes = ["mp4", "mov", "m4v", "webm", "mkv", "avi"]
+        panel.message = "Scegli un file video da convertire in GIF."
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        gifSourceText = url.path
+        gifSourceCandidate = nil
+        gifSourcePageURL = nil
+        gifStatus = "Video locale selezionato: \(url.lastPathComponent)"
+        workspaceMode = .gifStudio
+    }
+
+    func applyGIFPreset(_ preset: GIFPreset) {
+        gifPreset = preset
+        switch preset {
+        case .leggera:
+            gifScalePercent = 100
+            gifFPS = 15
+            gifLossyPercent = 10
+            gifPaletteSize = .colors256
+            gifDitherStyle = .sierra2_4a
+            gifDitherIntensity = 80
+            gifDropDuplicateFrames = false
+            gifFrameDifferencing = true
+        case .bilanciata:
+            gifScalePercent = 75
+            gifFPS = 12
+            gifLossyPercent = 20
+            gifPaletteSize = .colors128
+            gifDitherStyle = .sierra2_4a
+            gifDitherIntensity = 60
+            gifDropDuplicateFrames = true
+            gifFrameDifferencing = true
+        case .ultraCompressa:
+            gifScalePercent = 50
+            gifFPS = 8
+            gifLossyPercent = 45
+            gifPaletteSize = .colors64
+            gifDitherStyle = .bayer
+            gifDitherIntensity = 35
+            gifDropDuplicateFrames = true
+            gifFrameDifferencing = true
+        }
+        gifStatus = "Preset \(preset.label) applicato."
+    }
+
     func convertToGIF() {
         let source = gifSourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !source.isEmpty else {
@@ -410,29 +489,23 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             AppBackdrop()
-            GeometryReader { proxy in
-                VStack(spacing: 18) {
-                    HeaderView(state: self.state)
-                    WorkspaceModePicker(state: self.state)
-                    SupportedSourcesStrip(state: self.state)
-                    if self.state.workspaceMode == .analyzer {
-                        MetricsStrip(state: self.state)
-                        HStack(alignment: .top, spacing: 18) {
-                            SidebarView(state: self.state)
-                                .frame(width: min(330, max(280, proxy.size.width * 0.26)))
-                            ResultsView(state: self.state)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                    } else {
-                        GIFStudioView(state: self.state)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
+            VStack(spacing: 18) {
+                HeaderView(state: self.state)
+                WorkspaceModePicker(state: self.state)
+                SupportedSourcesStrip(state: self.state)
+                if self.state.workspaceMode == .analyzer {
+                    MetricsStrip(state: self.state)
+                    AnalyzerControlsView(state: self.state)
+                    ResultsView(state: self.state)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    GIFStudioView(state: self.state)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
         .padding(18)
-        .frame(minWidth: 1120, minHeight: 760)
+        .frame(minWidth: 1520, minHeight: 980)
     }
 }
 
@@ -515,9 +588,23 @@ struct HeaderView: View {
         }
         .padding(.horizontal, 26)
         .padding(.vertical, 24)
-        .background(Color.white.opacity(0.86))
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.white.opacity(0.96),
+                    Color(red: 0.95, green: 0.98, blue: 1.0).opacity(0.98),
+                    Color(red: 1.0, green: 0.96, blue: 0.97).opacity(0.96)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.7), lineWidth: 1)
+        )
         .cornerRadius(18)
-        .shadow(color: Color.black.opacity(0.05), radius: 20, x: 0, y: 10)
+        .shadow(color: Color(red: 0.16, green: 0.23, blue: 0.38).opacity(0.10), radius: 24, x: 0, y: 14)
     }
 }
 
@@ -525,25 +612,23 @@ struct SupportedSourcesStrip: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(state.supportedSources) { source in
-                    HStack(spacing: 8) {
-                        source.tint
-                            .frame(width: 9, height: 9)
-                            .cornerRadius(5)
-                        Text(source.name)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(Color.black.opacity(0.74))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(source.tint.opacity(self.badgeOpacity(for: source.name)))
-                    .cornerRadius(999)
+        HStack(spacing: 8) {
+            ForEach(state.supportedSources) { source in
+                HStack(spacing: 7) {
+                    source.tint
+                        .frame(width: 8, height: 8)
+                        .cornerRadius(4)
+                    Text(source.name)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color.black.opacity(0.74))
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(source.tint.opacity(self.badgeOpacity(for: source.name)))
+                .cornerRadius(999)
             }
-            .padding(.horizontal, 4)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func badgeOpacity(for name: String) -> Double {
@@ -578,14 +663,14 @@ struct MetricTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased())
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: 10, weight: .bold))
                 .foregroundColor(Color.black.opacity(0.45))
             Text(value)
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundColor(Color.black.opacity(0.82))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
+        .padding(14)
         .background(Color.white.opacity(0.88))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -595,68 +680,70 @@ struct MetricTile: View {
     }
 }
 
-struct SidebarView: View {
+struct AnalyzerControlsView: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                PanelCard(title: "Nuova analisi", tint: Color(red: 0.10, green: 0.55, blue: 0.98)) {
-                    TextField("https://example.com/post/...", text: $state.urlText, onCommit: {
-                        self.state.analyze()
-                    })
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                    Button(action: {
-                        self.state.analyze()
-                    }) {
-                        HStack {
-                            Spacer()
-                            Text(state.isAnalyzing ? "Analisi in corso..." : "Analizza pagina")
-                            Spacer()
-                        }
-                    }
-                    .disabled(state.isAnalyzing || state.urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Text(state.quickSummary)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color.black.opacity(0.54))
-                }
-
-                PanelCard(title: "Settaggi", tint: Color(red: 0.98, green: 0.54, blue: 0.18)) {
-                    Text("Chrome/Chromium gira in background con budget rapido sotto i 10 secondi.")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color.black.opacity(0.58))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Toggle("Scorrimento automatico", isOn: $state.deepScroll)
-                    Toggle("Risorse network", isOn: $state.includeNetworkResources)
-                    Toggle("Prova accettazione cookie", isOn: $state.autoAcceptCookies)
-                    Stepper(value: $state.resultLimit, in: 3...30) {
-                        Text("Risultati max: \(state.resultLimit)")
-                    }
-                    if state.facebookMode {
-                        Text("Per Facebook il flusso prova prima ad accettare tutti i cookie e poi a chiudere l'eventuale popup login.")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Color.blue.opacity(0.88))
-                            .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .top, spacing: 14) {
+            PanelCard(title: "Nuova analisi", tint: Color(red: 0.10, green: 0.55, blue: 0.98)) {
+                TextField("https://example.com/post/...", text: $state.urlText, onCommit: {
+                    self.state.analyze()
+                })
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                Button(action: {
+                    self.state.analyze()
+                }) {
+                    HStack {
+                        Spacer()
+                        Text(state.isAnalyzing ? "Analisi in corso..." : "Analizza pagina")
+                        Spacer()
                     }
                 }
+                .disabled(state.isAnalyzing || state.urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Text(state.quickSummary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Color.black.opacity(0.54))
+            }
+            .frame(maxWidth: .infinity, alignment: .top)
 
-                PanelCard(title: "Sorgenti", tint: Color(red: 0.53, green: 0.40, blue: 0.96)) {
-                    Text("Queste sono le sorgenti che stiamo rendendo sempre piu affidabili.")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color.black.opacity(0.58))
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(state.supportedSources) { source in
-                            HStack(spacing: 10) {
-                                source.tint
-                                    .frame(width: 10, height: 10)
-                                    .cornerRadius(5)
-                                Text(source.name)
-                                    .font(.system(size: 13, weight: .semibold))
+            PanelCard(title: "Settaggi", tint: Color(red: 0.98, green: 0.54, blue: 0.18)) {
+                Text("Chrome/Chromium gira in background con budget rapido sotto i 10 secondi.")
+                    .font(.system(size: 12))
+                    .foregroundColor(Color.black.opacity(0.58))
+                    .fixedSize(horizontal: false, vertical: true)
+                Toggle("Scorrimento automatico", isOn: $state.deepScroll)
+                Toggle("Risorse network", isOn: $state.includeNetworkResources)
+                Toggle("Prova accettazione cookie", isOn: $state.autoAcceptCookies)
+                Stepper(value: $state.resultLimit, in: 3...30) {
+                    Text("Risultati max: \(state.resultLimit)")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .top)
+
+            PanelCard(title: "Sorgenti", tint: Color(red: 0.53, green: 0.40, blue: 0.96)) {
+                Text("Sorgenti supportate e in affinamento continuo.")
+                    .font(.system(size: 12))
+                    .foregroundColor(Color.black.opacity(0.58))
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(state.supportedSources.chunked(into: 3).enumerated()), id: \.offset) { _, row in
+                        HStack(spacing: 12) {
+                            ForEach(row) { source in
+                                HStack(spacing: 8) {
+                                    source.tint
+                                        .frame(width: 9, height: 9)
+                                        .cornerRadius(5)
+                                    Text(source.name)
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
                     }
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .top)
 
+            VStack(spacing: 14) {
                 PanelCard(title: "Formati", tint: Color(red: 0.00, green: 0.72, blue: 0.52)) {
                     Toggle("Video", isOn: $state.showVideos)
                     Toggle("GIF", isOn: $state.showGifs)
@@ -666,11 +753,26 @@ struct SidebarView: View {
                     Text(state.status)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(Color.black.opacity(0.62))
-                        .lineLimit(6)
+                        .lineLimit(5)
                         .fixedSize(horizontal: false, vertical: true)
+                    if state.facebookMode {
+                        Text("Facebook: cookie e popup login vengono gestiti prima della lettura del reel.")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color.blue.opacity(0.88))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
-            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+    }
+}
+
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [self] }
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
         }
     }
 }
@@ -698,9 +800,22 @@ struct PanelCard<Content: View>: View {
             content
         }
         .padding(16)
-        .background(Color.white.opacity(0.9))
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.white.opacity(0.97),
+                    tint.opacity(0.07)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(tint.opacity(0.16), lineWidth: 1)
+        )
         .cornerRadius(18)
-        .shadow(color: Color.black.opacity(0.04), radius: 16, x: 0, y: 8)
+        .shadow(color: tint.opacity(0.08), radius: 18, x: 0, y: 10)
     }
 }
 
@@ -715,7 +830,7 @@ struct ResultsView: View {
                     Text("\(state.filteredCandidates.count) risultati")
                         .font(.title)
                         .fontWeight(.semibold)
-                    Text("Mostro solo video e GIF, ordinati dal file piu pesante al piu leggero.")
+                    Text("Video e GIF ordinati dal file piu pesante al piu leggero.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -729,7 +844,7 @@ struct ResultsView: View {
 
             if showLogs {
                 LogView(logs: state.logs)
-                    .frame(height: 170)
+                    .frame(height: 120)
             }
 
             if state.filteredCandidates.isEmpty {
@@ -737,23 +852,36 @@ struct ResultsView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 14) {
-                        ForEach(state.filteredCandidates) { candidate in
-                            CandidateCard(candidate: candidate, isBusy: self.state.isDownloading, download: {
-                                self.state.download(candidate)
-                            }, copyURL: {
-                                self.state.copyURL(candidate)
-                            }, convertToGIF: {
-                                self.state.prepareGIFSource(from: candidate)
-                            })
+                        ForEach(Array(state.filteredCandidates.chunked(into: 2).enumerated()), id: \.offset) { _, row in
+                            HStack(alignment: .top, spacing: 14) {
+                                ForEach(row) { candidate in
+                                    CandidateCard(candidate: candidate, isBusy: self.state.isDownloading, download: {
+                                        self.state.download(candidate)
+                                    }, copyURL: {
+                                        self.state.copyURL(candidate)
+                                    }, convertToGIF: {
+                                        self.state.prepareGIFSource(from: candidate)
+                                    })
+                                    .frame(maxWidth: .infinity)
+                                }
+                                if row.count == 1 {
+                                    Spacer()
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
                         }
                     }
                     .padding(20)
                 }
             }
         }
-        .background(Color.white.opacity(0.88))
+        .background(Color.white.opacity(0.92))
         .cornerRadius(22)
-        .shadow(color: Color.black.opacity(0.06), radius: 18, x: 0, y: 10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 22)
+                .stroke(Color.white.opacity(0.7), lineWidth: 1)
+        )
+        .shadow(color: Color(red: 0.16, green: 0.23, blue: 0.38).opacity(0.10), radius: 24, x: 0, y: 14)
     }
 }
 
@@ -761,19 +889,64 @@ struct GIFStudioView: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        HStack(alignment: .top, spacing: 18) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    PanelCard(title: "Sorgente video", tint: Color(red: 0.92, green: 0.34, blue: 0.58)) {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 14) {
+                PanelCard(title: "Sorgente video", tint: Color(red: 0.92, green: 0.34, blue: 0.58)) {
+                    VStack(alignment: .leading, spacing: 10) {
                         TextField("URL video o percorso file locale", text: $state.gifSourceText)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
-                        Text("Puoi incollare un link diretto oppure usare il pulsante In GIF da un risultato analizzato.")
+                        HStack(spacing: 10) {
+                            Button("Scegli file video...") {
+                                self.state.pickGIFSourceFile()
+                            }
+                            Button("Pulisci") {
+                                self.state.gifSourceText = ""
+                            }
+                        }
+                        Text("Usa un link diretto, un file locale o il pulsante In GIF dai risultati dell analyzer.")
                             .font(.system(size: 12))
                             .foregroundColor(Color.black.opacity(0.58))
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
 
-                    PanelCard(title: "Qualita e peso", tint: Color(red: 0.98, green: 0.54, blue: 0.18)) {
+                PanelCard(title: "Preset rapidi", tint: Color(red: 0.10, green: 0.55, blue: 0.98)) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(GIFPreset.allCases) { preset in
+                            Button(action: {
+                                self.state.applyGIFPreset(preset)
+                            }) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(preset.label)
+                                            .font(.system(size: 13, weight: .semibold))
+                                        Text(preset.subtitle)
+                                            .font(.system(size: 11))
+                                            .foregroundColor(Color.black.opacity(0.58))
+                                    }
+                                    Spacer()
+                                    if self.state.gifPreset == preset {
+                                        Text("Attivo")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundColor(Color(red: 0.10, green: 0.55, blue: 0.98))
+                                    }
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(self.state.gifPreset == preset ? Color(red: 0.10, green: 0.55, blue: 0.98).opacity(0.10) : Color.white.opacity(0.7))
+                                )
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+
+                PanelCard(title: "Qualita e peso", tint: Color(red: 0.98, green: 0.54, blue: 0.18)) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Stepper(value: $state.gifScalePercent, in: 20...100, step: 5) {
                             Text("Risoluzione output: \(state.gifScalePercent)%")
                         }
@@ -789,8 +962,11 @@ struct GIFStudioView: View {
                             }
                         }
                     }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
 
-                    PanelCard(title: "Dithering", tint: Color(red: 0.53, green: 0.40, blue: 0.96)) {
+                PanelCard(title: "Dithering", tint: Color(red: 0.53, green: 0.40, blue: 0.96)) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Picker("Tipo", selection: $state.gifDitherStyle) {
                             ForEach(GIFDitherStyle.allCases) { style in
                                 Text(style.label).tag(style)
@@ -799,11 +975,16 @@ struct GIFStudioView: View {
                         Stepper(value: $state.gifDitherIntensity, in: 0...100, step: 5) {
                             Text("Intensita: \(state.gifDitherIntensity)%")
                         }
-                        Toggle("Ottimizzazione trasparenza / frame differencing", isOn: $state.gifFrameDifferencing)
-                        Toggle("Rimozione fotogrammi duplicati", isOn: $state.gifDropDuplicateFrames)
+                        Toggle("Frame differencing", isOn: $state.gifFrameDifferencing)
+                        Toggle("Drop frame duplicati", isOn: $state.gifDropDuplicateFrames)
                     }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
 
-                    PanelCard(title: "Trim temporale", tint: Color(red: 0.00, green: 0.72, blue: 0.52)) {
+            HStack(alignment: .top, spacing: 16) {
+                PanelCard(title: "Trim e conversione", tint: Color(red: 0.00, green: 0.72, blue: 0.52)) {
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Inizio (sec)")
@@ -816,32 +997,29 @@ struct GIFStudioView: View {
                                 Text("Fine (sec)")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                TextField("lascia vuoto = fine video", text: $state.gifTrimEnd)
+                                TextField("fine video", text: $state.gifTrimEnd)
                                     .textFieldStyle(RoundedBorderTextFieldStyle())
                             }
                         }
-                    }
-
-                    Button(action: {
-                        self.state.convertToGIF()
-                    }) {
-                        HStack {
-                            Spacer()
-                            Text(state.isConvertingGIF ? "Conversione in corso..." : "Converti in GIF")
-                            Spacer()
+                        Spacer(minLength: 0)
+                        Button(action: {
+                            self.state.convertToGIF()
+                        }) {
+                            HStack {
+                                Spacer()
+                                Text(state.isConvertingGIF ? "Conversione in corso..." : "Converti in GIF")
+                                Spacer()
+                            }
                         }
+                        .disabled(state.isConvertingGIF || state.gifSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .disabled(state.isConvertingGIF || state.gifSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .padding(.bottom, 8)
-            }
-            .frame(width: 360)
+                .frame(width: 300)
 
-            VStack(spacing: 14) {
                 PanelCard(title: "Anteprima output", tint: Color(red: 0.10, green: 0.55, blue: 0.98)) {
                     if !state.gifOutputPath.isEmpty {
                         GIFOutputPreview(path: state.gifOutputPath)
-                            .frame(height: 300)
+                            .frame(height: 280)
                             .frame(maxWidth: .infinity)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         Text(state.gifOutputPath)
@@ -849,30 +1027,33 @@ struct GIFStudioView: View {
                             .foregroundColor(.secondary)
                             .lineLimit(2)
                     } else {
-                        VStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 10) {
                             Text("GIF Studio")
                                 .font(Font.title.weight(.semibold))
-                            Text("Riduci peso con scala, FPS, palette, dithering e trim, senza uscire dall app.")
+                            Text("Tutte le regolazioni importanti ora sono in alto: scegli la sorgente, applica un preset rapido e poi rifinisci i parametri solo se serve.")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 300)
+                        .frame(maxWidth: .infinity, minHeight: 280, alignment: .leading)
                     }
                 }
+                .frame(maxWidth: .infinity)
 
-                PanelCard(title: "Stato conversione", tint: Color(red: 0.90, green: 0.21, blue: 0.40)) {
-                    Text(state.gifStatus)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color.black.opacity(0.62))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                VStack(spacing: 14) {
+                    PanelCard(title: "Stato conversione", tint: Color(red: 0.90, green: 0.21, blue: 0.40)) {
+                        Text(state.gifStatus)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color.black.opacity(0.62))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
-                PanelCard(title: "Log GIF", tint: Color(red: 0.46, green: 0.53, blue: 0.60)) {
-                    LogView(logs: state.gifLogs)
-                        .frame(maxHeight: .infinity)
+                    PanelCard(title: "Log GIF", tint: Color(red: 0.46, green: 0.53, blue: 0.60)) {
+                        LogView(logs: state.gifLogs)
+                            .frame(height: 190)
+                    }
                 }
+                .frame(width: 360)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.white.opacity(0.88))
         .cornerRadius(22)
@@ -950,7 +1131,7 @@ struct CandidateCard: View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack(alignment: .topLeading) {
                 MediaPreview(candidate: candidate)
-                    .frame(height: 150)
+                    .frame(height: 118)
                     .frame(maxWidth: .infinity)
                     .background(
                         LinearGradient(
@@ -980,15 +1161,15 @@ struct CandidateCard: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(candidate.type.accent)
                 Text(candidate.source)
-                    .font(.headline)
+                    .font(.system(size: 15, weight: .semibold))
                     .lineLimit(1)
                 Text(metaLine)
-                .font(.caption)
-                .foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 Text(candidate.url)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(1)
             }
 
             HStack {
@@ -1002,12 +1183,22 @@ struct CandidateCard: View {
             }
         }
         .padding(12)
-        .background(Color.white)
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.white.opacity(0.98),
+                    candidate.type.accent.opacity(0.06)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(candidate.type.accent.opacity(0.18), lineWidth: 1)
+                .stroke(candidate.type.accent.opacity(0.22), lineWidth: 1)
         )
         .cornerRadius(16)
+        .shadow(color: candidate.type.accent.opacity(0.06), radius: 14, x: 0, y: 8)
     }
 
     private var dimensionText: String? {
@@ -2384,13 +2575,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let contentView = ContentView(state: state)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1120, height: 760),
+            contentRect: NSRect(x: 0, y: 0, width: 1520, height: 980),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "MediaScout"
-        window.minSize = NSSize(width: 1120, height: 760)
+        window.minSize = NSSize(width: 1520, height: 980)
         window.center()
         window.contentView = NSHostingView(rootView: contentView)
         window.makeKeyAndOrderFront(nil)
