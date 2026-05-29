@@ -1,16 +1,23 @@
 .DS_Store
+.AppleDouble
+.LSOverride
 
 # Build output
 .build/
 dist/
+build/
 
 # Archives and handoff packages
 *.zip
 
 # Xcode user data
 xcuserdata/
+*.xcworkspace/xcuserdata/
 *.xcuserstate
 *.xcscmblueprint
+*.moved-aside
+*.pbxuser
+!default.pbxuser
 
 # SwiftPM / Xcode caches
 .swiftpm/
@@ -20,3 +27,12 @@ DerivedData/
 *.log
 tmp/
 *.tmp
+*.swp
+*.swo
+
+# Local secrets and env
+.env
+.env.*
+
+# Finder and editor noise
+.vscode/

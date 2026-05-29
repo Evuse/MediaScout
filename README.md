@@ -27,3 +27,49 @@ open dist/MediaScout.app
 ## Limiti della prima versione
 
 Alcuni siti proteggono i file con autenticazione, token temporanei, DRM, CORS, contenuti `blob:` o regole anti-scraping. Questa versione individua molte sorgenti pubbliche e renderizzate, e in modalita Chrome/Chromium vede anche le richieste di rete del browser locale headless, ma non aggira DRM, paywall, login non autorizzati o restrizioni del sito.
+
+## Workflow Git consigliato
+
+Questo repository GitHub e la fonte di verita del progetto:
+
+- repo: `git@github.com:Evuse/MediaScout.git`
+- `main`: stato stabile e sincronizzato
+- `develop`: ramo di lavoro continuo
+- `feature/...`: modifiche isolate quando vuoi lavorare in modo piu ordinato
+
+Routine consigliata su qualsiasi macchina:
+
+```bash
+git checkout develop
+git pull
+```
+
+Quando chiudi una modifica:
+
+```bash
+git add .
+git commit -m "Messaggio chiaro"
+git push
+```
+
+Se vuoi fare una modifica isolata:
+
+```bash
+git checkout develop
+git pull
+git checkout -b feature/nome-modifica
+```
+
+Poi, quando la modifica e pronta:
+
+```bash
+git checkout develop
+git merge feature/nome-modifica
+git push
+```
+
+## Note pratiche
+
+- Non committare `dist/`, `DerivedData/`, `.build/` o zip temporanei.
+- Se lavori con un'altra AI, falle usare sempre una copia clonata da GitHub e chiudere il lavoro con `commit` + `push`.
+- Prima di lavorare da una macchina diversa, fai sempre `git pull`.
